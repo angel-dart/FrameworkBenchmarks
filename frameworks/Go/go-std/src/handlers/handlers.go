@@ -7,8 +7,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/valyala/bytebufferpool"
-
 	"go-std/src/storage"
 	"go-std/src/templates"
 )
@@ -163,41 +161,6 @@ func FortuneQuickHandlerPool(db storage.DB) func(w http.ResponseWriter, r *http.
 	}
 }
 
-// UpdateHandlerChan . Test 5: Database updates
-func UpdateHandlerChan(db storage.DB) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		queries := queriesParam(r)
-		var err error
-
-		world := storage.WorldPool.Get().(*storage.World)
-		in := make(chan *storage.World, queries)
-		go func() {
-			for i := 0; i < queries; i++ {
-				if err = db.GetOneRandomWorld(world); err != nil {
-					log.Println(err)
-					continue
-				}
-				in <- world
-			}
-			close(in)
-		}()
-
-		// worlds := make([]storage.World, queries)
-		worlds := storage.WorldsPool.Get().([]storage.World)[:queries]
-		if err = db.UpdateWorldsChan(in, worlds); err != nil {
-			log.Println(err)
-			return
-		}
-
-		w.Header().Set("Server", "Go")
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(worlds)
-
-		worlds = worlds[:0]
-		storage.WorldsPool.Put(worlds)
-	}
-}
-
 // UpdateHandler . Test 5: Database updates
 func UpdateHandler(db storage.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -228,13 +191,15 @@ func UpdateHandler(db storage.DB) func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var helloWorld = []byte("Hello, World!")
+
 // PlaintextHandler . Test 6: Plaintext
 func PlaintextHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Server", "Go")
 	w.Header().Set("Content-Type", "text/plain")
-	b := bytebufferpool.Get()
-	b.SetString("Hello, World!")
-	w.Write(b.Bytes())
-	b.Reset()
-	bytebufferpool.Put(b)
+	// As per 6, iv:
+	//  This test is not intended to exercise the allocation of memory or
+	//  instantiation of objects. Therefore it is acceptable but not required
+	//  to re-use a single buffer for the response text.
+	w.Write(helloWorld)
 }
